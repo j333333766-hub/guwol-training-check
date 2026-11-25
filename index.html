@@ -25,9 +25,15 @@
     <div class="text-4xl mb-2">🔒</div>
     <h1 class="text-xl font-extrabold text-indigo-700">교원 의무 연수 이수 확인</h1>
     <p class="text-sm text-slate-500 mt-1 mb-5">비밀번호를 넣어 주세요.</p>
+    <div id="apiBox" class="hidden text-left mb-3">
+      <label class="block text-xs font-bold text-slate-500 mb-1">이 학교 앱스스크립트 웹앱 주소 (…/exec)</label>
+      <input id="apiInput" type="url" placeholder="https://script.google.com/macros/s/…/exec" class="w-full border border-slate-300 p-2 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-400">
+      <p class="text-[11px] text-slate-400 mt-1">처음 한 번만 넣으면 이 브라우저가 기억합니다.</p>
+    </div>
     <input id="pwInput" type="password" autocomplete="current-password" placeholder="비밀번호" class="w-full border border-slate-300 p-3 rounded-lg text-center text-lg outline-none focus:ring-2 focus:ring-indigo-400">
     <button id="loginBtn" type="submit" class="mt-3 w-full bg-indigo-600 text-white py-3 rounded-lg font-bold shadow hover:bg-indigo-700 transition">들어가기</button>
     <p id="loginMsg" class="text-sm text-rose-600 font-bold mt-3 min-h-[1.25rem]"></p>
+    <button type="button" id="apiChange" onclick="showApiBox()" class="hidden text-[11px] text-slate-400 underline mt-1">다른 학교 웹앱 주소로 바꾸기</button>
   </form>
 </div>
 
@@ -38,6 +44,7 @@
       <p class="text-slate-500 text-sm mt-1">나이스 연수 엑셀을 끌어다 놓으면 구글 시트에 누적 저장됩니다. 중복은 자동으로 빠집니다.</p>
     </div>
     <button onclick="openRoster()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-indigo-700 transition">👥 교원 명단 보기·편집</button>
+    <button onclick="openLinks()" class="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-100 transition">🔗 다른 주소로 열기</button>
     <a id="sheetLink" href="#" target="_blank" class="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-100 transition">📄 구글 시트 열기</a>
   </div>
 
@@ -144,6 +151,30 @@
   </div>
 </div>
 
+<!-- 다른 주소로 열기 창 -->
+<div id="linksModal" class="hidden fixed inset-0 z-40 bg-slate-900/50 flex items-start justify-center p-4 overflow-y-auto">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 mt-10 space-y-5">
+    <div class="flex items-center">
+      <h2 class="text-lg font-bold text-slate-700">🔗 이 앱을 여는 세 가지 주소</h2>
+      <button onclick="closeLinks()" class="ml-auto text-slate-500 hover:text-slate-800 text-sm font-bold border border-slate-300 rounded px-3 py-1">닫기 ✕</button>
+    </div>
+    <p class="text-xs text-slate-500">구글 계정이 여러 개 로그인된 브라우저에서는 ①이 「현재 파일을 열 수 없습니다」로 막힐 수 있습니다. 그럴 땐 ②나 ③을 쓰세요. 어느 주소든 데이터는 같은 구글 시트이고, 비밀번호가 있어야 보입니다.</p>
+    <div>
+      <p class="text-sm font-bold text-slate-700 mb-1">① 앱스스크립트 주소</p>
+      <div class="flex gap-2"><input id="lnkGas" readonly class="flex-1 min-w-0 border border-slate-200 bg-slate-50 p-2 rounded text-xs"><button onclick="copyLink('lnkGas')" class="bg-slate-700 text-white px-3 rounded text-xs font-bold">복사</button></div>
+    </div>
+    <div>
+      <p class="text-sm font-bold text-slate-700 mb-1">② 깃허브 주소 (추천 · 어느 브라우저·휴대폰에서든 열림)</p>
+      <div class="flex gap-2"><input id="lnkPages" readonly class="flex-1 min-w-0 border border-slate-200 bg-slate-50 p-2 rounded text-xs"><button onclick="copyLink('lnkPages')" class="bg-slate-700 text-white px-3 rounded text-xs font-bold">복사</button></div>
+    </div>
+    <div>
+      <p class="text-sm font-bold text-slate-700 mb-1">③ 우리 학교 전용 주소 만들기 (Netlify)</p>
+      <p class="text-xs text-slate-500 mb-2">파일을 받아 <b>app.netlify.com/drop</b> 화면에 끌어다 놓으면 우리 학교 전용 주소가 생깁니다. 이 파일에는 데이터가 없고, 웹앱 주소만 들어 있습니다.</p>
+      <button id="dlBtn" onclick="downloadStandalone()" class="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-teal-700">📥 Netlify용 index.html 받기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 알림 -->
 <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg shadow-lg text-white font-bold text-sm max-w-[90vw]"></div>
 
@@ -167,11 +198,33 @@
     clearTimeout(el._t);
     el._t = setTimeout(() => el.classList.add('hidden'), kind === 'err' ? 7000 : 4000);
   }
-  // 앱스스크립트 안에서 열리면 google.script.run, GitHub Pages에서 열리면 웹앱 주소로 fetch
-  const API_URL = 'https://script.google.com/macros/s/AKfycbw2P7Q50uxSIfniHAlxGfUTRx4pAgb7Czy7PexT-k13_2N0Sv49jfshrq7nSAsu3qNP/exec';
+  // 앱스스크립트 안에서 열리면 google.script.run, 깃허브·Netlify에서 열리면 웹앱 주소(API)로 fetch
+  // Netlify용 파일을 만들 때 아래 한 줄에 웹앱 주소가 자동으로 들어갑니다.
+  const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbw2P7Q50uxSIfniHAlxGfUTRx4pAgb7Czy7PexT-k13_2N0Sv49jfshrq7nSAsu3qNP/exec';
+  const PAGES_BASE = 'https://j333333766-hub.github.io/teacher-training-check/';
+  const IN_GAS = !!(window.google && google.script && google.script.run);
+  const API_RE = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
+  let API_URL = '';
+  let APP_URL = '';
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function cleanApi(u) { u = String(u || '').trim().split('?')[0].replace(/\/u\/\d+\//, '/').replace(/\/dev$/, '/exec'); return API_RE.test(u) ? u : ''; }
+  function resolveApi() {
+    if (IN_GAS) return;
+    const q = cleanApi(new URLSearchParams(location.search).get('api'));
+    if (q) store('apiUrl', q);
+    API_URL = DEFAULT_API || q || cleanApi(load('apiUrl'));
+  }
+  function showApiBox() {
+    document.getElementById('apiBox').classList.remove('hidden');
+    document.getElementById('apiChange').classList.add('hidden');
+    document.getElementById('apiInput').value = API_URL;
+    document.getElementById('apiInput').focus();
+  }
   function call(fn, ...args) {
-    if (window.google && google.script && google.script.run)
+    if (IN_GAS)
       return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
+    if (!API_URL) return Promise.reject(new Error('웹앱 주소를 먼저 넣어 주세요.'));
     return fetch(API_URL, {
       method: 'POST', credentials: 'omit', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -185,6 +238,7 @@
     records = d.records || [];
     lastLog = d.lastLog;
     if (d.sheetUrl) document.getElementById('sheetLink').href = d.sheetUrl;
+    APP_URL = cleanApi(d.appUrl) || API_URL;
     updateTeacherCount();
     updateFileStatus();
   }
@@ -205,15 +259,57 @@
   }
   function doLogin(e) {
     e.preventDefault();
+    if (!IN_GAS && !document.getElementById('apiBox').classList.contains('hidden')) {
+      const u = cleanApi(document.getElementById('apiInput').value);
+      if (!u) { document.getElementById('loginMsg').textContent = '웹앱 주소가 올바르지 않습니다. https://script.google.com/macros/s/…/exec 형태여야 합니다.'; return; }
+      if (u !== API_URL) { API_URL = u; store('apiUrl', u); try { sessionStorage.removeItem('pw'); } catch (er) {} }
+    }
     const pw = document.getElementById('pwInput').value.trim();
     if (!pw) { document.getElementById('loginMsg').textContent = '비밀번호를 넣어 주세요.'; return; }
     tryLogin(pw);
   }
   window.addEventListener('load', () => {
+    resolveApi();
+    if (!IN_GAS) {
+      if (!API_URL) showApiBox();
+      else if (!DEFAULT_API) document.getElementById('apiChange').classList.remove('hidden');
+    }
     let saved = '';
     try { saved = sessionStorage.getItem('pw') || ''; } catch (e) {}
-    if (saved) tryLogin(saved); else document.getElementById('pwInput').focus();
+    if (saved && (IN_GAS || API_URL)) tryLogin(saved); else if (API_URL || IN_GAS) document.getElementById('pwInput').focus();
   });
+
+  /* ---------- 다른 주소로 열기 ---------- */
+  function openLinks() {
+    const u = APP_URL || API_URL;
+    document.getElementById('lnkGas').value = u || '(아직 웹앱으로 배포되지 않았습니다)';
+    document.getElementById('lnkPages').value = u ? PAGES_BASE + '?api=' + encodeURIComponent(u) : '';
+    document.getElementById('linksModal').classList.remove('hidden');
+  }
+  function closeLinks() { document.getElementById('linksModal').classList.add('hidden'); }
+  document.getElementById('linksModal').addEventListener('click', e => { if (e.target.id === 'linksModal') closeLinks(); });
+  function copyLink(id) {
+    const el = document.getElementById(id);
+    el.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    if (!ok && navigator.clipboard) navigator.clipboard.writeText(el.value).then(() => toast('복사했습니다.'), () => toast('Ctrl+C로 복사해 주세요.', 'warn'));
+    else toast(ok ? '복사했습니다.' : 'Ctrl+C로 복사해 주세요.', ok ? '' : 'warn');
+  }
+  async function downloadStandalone() {
+    const btn = document.getElementById('dlBtn');
+    btn.disabled = true;
+    try {
+      const html = await call('getStandaloneHtml', PW);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+      a.download = 'index.html';
+      document.body.appendChild(a); a.click(); a.remove();
+      toast('index.html을 받았습니다. app.netlify.com/drop 에 끌어다 놓으세요.');
+    } catch (e) {
+      toast('파일 만들기 실패: ' + errMsg(e), 'err');
+    } finally { btn.disabled = false; }
+  }
 
   /* ---------- 날짜 ---------- */
   function toDateStr(v) {
@@ -320,7 +416,7 @@
   function openRoster() { document.getElementById('rosterModal').classList.remove('hidden'); renderRoster(); document.getElementById('newName').focus(); }
   function closeRoster() { document.getElementById('rosterModal').classList.add('hidden'); pendingDelete = null; }
   document.getElementById('rosterModal').addEventListener('click', e => { if (e.target.id === 'rosterModal') closeRoster(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRoster(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeRoster(); closeLinks(); } });
 
   function updateTeacherCount() {
     document.getElementById('teacherCount').textContent = `저장된 명단: ${teacherList.length}명`;
