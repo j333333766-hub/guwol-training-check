@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <title>교원 의무 연수 이수 확인</title>
+  <meta charset="UTF-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    .drop-zone { border: 2px dashed #cbd5e1; transition: all .2s ease; }
+    .drop-zone.dragover { border-color: #3b82f6; background-color: #eff6ff; }
+    .drop-zone.busy { opacity: .6; pointer-events: none; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #e2e8f0; padding: .5rem; text-align: center; white-space: nowrap; }
+    th { background-color: #f8fafc; font-weight: 600; }
+    .spin { width: 18px; height: 18px; border: 3px solid #c7d2fe; border-top-color: #4f46e5; border-radius: 50%; animation: s 1s linear infinite; display: inline-block; }
+    @keyframes s { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-slate-50 p-6 min-h-screen text-gray-800">
+
+<!-- 비밀번호 화면 -->
+<div id="loginBox" class="fixed inset-0 z-50 bg-slate-100 flex items-center justify-center p-4">
+  <form onsubmit="doLogin(event)" class="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 w-full max-w-sm text-center">
+    <div class="text-4xl mb-2">🔒</div>
+    <h1 class="text-xl font-extrabold text-indigo-700">교원 의무 연수 이수 확인</h1>
+    <p class="text-sm text-slate-500 mt-1 mb-5">비밀번호를 넣어 주세요.</p>
+    <input id="pwInput" type="password" autocomplete="current-password" placeholder="비밀번호" class="w-full border border-slate-300 p-3 rounded-lg text-center text-lg outline-none focus:ring-2 focus:ring-indigo-400">
+    <button id="loginBtn" type="submit" class="mt-3 w-full bg-indigo-600 text-white py-3 rounded-lg font-bold shadow hover:bg-indigo-700 transition">들어가기</button>
+    <p id="loginMsg" class="text-sm text-rose-600 font-bold mt-3 min-h-[1.25rem]"></p>
+  </form>
+</div>
+
+<div class="max-w-6xl mx-auto space-y-6">
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="mr-auto">
+      <h1 class="text-3xl font-extrabold text-indigo-700">교원 의무 연수 이수 확인 시스템</h1>
+      <p class="text-slate-500 text-sm mt-1">나이스 연수 엑셀을 끌어다 놓으면 구글 시트에 누적 저장됩니다. 중복은 자동으로 빠집니다.</p>
+    </div>
+    <button onclick="openRoster()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-indigo-700 transition">👥 교원 명단 보기·편집</button>
+    <a id="sheetLink" href="#" target="_blank" class="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-100 transition">📄 구글 시트 열기</a>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+    <!-- 최신화 날짜 -->
+    <div class="md:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center">
+      <p class="text-sm font-bold text-slate-500">📅 마지막 최신화</p>
+      <p id="updDate" class="text-5xl md:text-6xl font-extrabold text-indigo-700 mt-2 leading-tight">불러오는 중…</p>
+      <p id="updTime" class="text-xl font-bold text-slate-600 mt-1"></p>
+      <div class="mt-4 space-y-1 text-sm text-slate-600">
+        <p><span class="font-bold text-slate-500">누적 연수</span> <span id="totalStatus">-</span></p>
+        <p><span class="font-bold text-slate-500">보유 기간</span> <span id="periodStatus">-</span></p>
+        <p><span class="font-bold text-slate-500">지난 업로드</span> <span id="lastUpdateStatus">-</span></p>
+      </div>
+    </div>
+
+    <!-- 업로드 -->
+    <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <h2 class="text-lg font-bold mb-4 text-slate-700 flex items-center">
+        <span class="bg-emerald-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-xs">1</span>
+        연수 내역 추가 및 최신화
+      </h2>
+      <div id="dropZone" class="drop-zone flex flex-col items-center justify-center p-6 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition min-h-[170px]">
+        <svg class="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <p class="text-sm text-slate-600 font-medium text-center">새 나이스 연수 파일을 끌어다 놓으세요.</p>
+        <p class="text-xs text-slate-400 mt-1">(누르면 파일 고르기 · 여러 개 가능)</p>
+        <p id="fileStatus" class="text-sm text-emerald-600 font-bold mt-3"></p>
+      </div>
+      <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" class="hidden">
+    </div>
+  </div>
+
+  <!-- 조회 -->
+  <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+    <h2 class="text-lg font-bold mb-4 text-slate-700 flex items-center">
+      <span class="bg-amber-500 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-xs">2</span>
+      연수 이수 내역 조회
+    </h2>
+    <div class="flex flex-wrap gap-4 items-end">
+      <div class="flex-1 min-w-[200px]">
+        <label class="block text-xs font-bold text-slate-500 mb-1">연수종료 기간 설정</label>
+        <div class="flex items-center gap-2">
+          <input type="date" id="startDate" class="w-full border border-slate-300 p-2 rounded-md outline-none focus:ring-2 focus:ring-amber-400">
+          <span>~</span>
+          <input type="date" id="endDate" class="w-full border border-slate-300 p-2 rounded-md outline-none focus:ring-2 focus:ring-amber-400">
+        </div>
+      </div>
+      <div class="flex-[2] min-w-[300px]">
+        <label class="block text-xs font-bold text-slate-500 mb-1">연수과정 키워드 (OR 조건, 쉼표로 구분)</label>
+        <input type="text" id="keywords" onkeyup="if(event.key==='Enter') searchData()" placeholder="예: 안전, 폭력, 아동학대 (입력 후 엔터)" class="w-full border border-slate-300 p-2 rounded-md outline-none focus:ring-2 focus:ring-amber-400">
+      </div>
+      <button onclick="searchData()" class="bg-slate-800 text-white px-8 py-2 rounded-md font-bold shadow hover:bg-slate-900 transition h-[42px]">조회하기</button>
+    </div>
+  </div>
+
+  <!-- 결과 -->
+  <div id="resultContainer" class="hidden bg-white p-6 rounded-xl shadow-md border border-slate-200">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-xl font-bold text-slate-800">조회 결과 및 미이수자 명단 <span id="resultCount" class="text-sm text-slate-500 font-normal"></span></h2>
+      <button onclick="downloadExcel()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center text-sm font-bold shadow hover:bg-emerald-700 transition">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        결과 엑셀 다운로드
+      </button>
+    </div>
+    <div class="mb-8 p-5 bg-rose-50 border border-rose-100 rounded-xl">
+      <h3 class="text-sm font-bold text-rose-700 mb-3">🚩 미이수자 (해당 조건의 연수 기록이 없음) <span id="uncompletedCount"></span></h3>
+      <div id="uncompletedList" class="flex flex-wrap gap-2"></div>
+    </div>
+    <div class="overflow-x-auto rounded-lg border border-slate-200 max-h-[500px]">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0 z-10">
+          <tr><th>연도</th><th>개인번호</th><th>성명</th><th>이수번호</th><th>연수과정명</th><th>연수기관</th><th>시작일</th><th>종료일</th><th>시간</th></tr>
+        </thead>
+        <tbody id="resultBody" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 교원 명단 창 -->
+<div id="rosterModal" class="hidden fixed inset-0 z-40 bg-slate-900/50 flex items-start justify-center p-4 overflow-y-auto">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6 mt-10">
+    <div class="flex items-center mb-4">
+      <h2 class="text-lg font-bold text-slate-700">👥 교원 명단</h2>
+      <span id="teacherCount" class="ml-3 text-sm font-bold text-indigo-600"></span>
+      <span id="saveState" class="ml-3 text-xs text-slate-400"></span>
+      <button onclick="closeRoster()" class="ml-auto text-slate-500 hover:text-slate-800 text-sm font-bold border border-slate-300 rounded px-3 py-1">닫기 ✕</button>
+    </div>
+    <div class="flex gap-2 mb-2">
+      <input id="newName" type="text" placeholder="이름" class="w-28 border border-slate-300 p-2 rounded-md text-sm outline-none focus:ring-2 focus:ring-indigo-400">
+      <input id="newId" type="text" placeholder="개인번호 (예: E101000000)" onkeyup="if(event.key==='Enter') addTeacher()" class="flex-1 min-w-0 border border-slate-300 p-2 rounded-md text-sm outline-none focus:ring-2 focus:ring-indigo-400">
+      <button onclick="addTeacher()" class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 transition text-sm font-bold whitespace-nowrap">+ 추가</button>
+    </div>
+    <input id="rosterFilter" type="text" placeholder="명단에서 이름·개인번호 찾기" oninput="renderRoster()" class="w-full border border-slate-200 p-1.5 rounded-md text-xs mb-2 outline-none focus:ring-2 focus:ring-indigo-300">
+    <div id="rosterList" class="h-64 overflow-y-auto border border-slate-200 rounded-lg p-2 flex flex-wrap gap-1 content-start bg-slate-50"></div>
+    <p class="text-xs text-slate-400 mt-1">이름 옆 ✕를 누르면 '삭제?'로 바뀌고, 한 번 더 누르면 지워집니다. 바꾼 내용은 바로 구글 시트에 저장됩니다.</p>
+    <details class="mt-3">
+      <summary class="text-xs font-bold text-slate-500 cursor-pointer">엑셀에서 여러 명 한꺼번에 붙여넣기 (명단 전체 교체)</summary>
+      <textarea id="teacherInput" class="w-full h-28 mt-2 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none text-sm" placeholder="이름	개인번호 (엑셀에서 두 열을 복사해 붙여넣으세요)"></textarea>
+      <div class="flex justify-end mt-2">
+        <button id="replaceBtn" onclick="replaceTeachers()" class="bg-slate-600 text-white px-4 py-2 rounded shadow hover:bg-slate-700 transition text-sm font-bold">명단 전체 교체</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- 알림 -->
+<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg shadow-lg text-white font-bold text-sm max-w-[90vw]"></div>
+
+<script>
+  const COLS = ['연수과정연도', '개인번호', '성명', '교원구분', '이수번호', '연수과정명', '연수기관',
+    '연수시작일', '연수종료일', '연수시간', '연수구분', '교육형태', '법정의무교육'];
+  const C = Object.fromEntries(COLS.map((c, i) => [c, i]));
+  let teacherList = [];
+  let records = [];          // COLS 순서의 배열들
+  let lastLog = null;
+  let currentFilteredData = [];
+  let pendingDelete = null;
+  let PW = '';
+
+  /* ---------- 공통 ---------- */
+  function toast(msg, kind) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg shadow-lg text-white font-bold text-sm max-w-[90vw] whitespace-pre-line '
+      + (kind === 'err' ? 'bg-rose-600' : kind === 'warn' ? 'bg-amber-600' : 'bg-emerald-600');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.add('hidden'), kind === 'err' ? 7000 : 4000);
+  }
+  // 앱스스크립트 안에서 열리면 google.script.run, GitHub Pages에서 열리면 웹앱 주소로 fetch
+  const API_URL = 'https://script.google.com/macros/s/AKfycbw2P7Q50uxSIfniHAlxGfUTRx4pAgb7Czy7PexT-k13_2N0Sv49jfshrq7nSAsu3qNP/exec';
+  function call(fn, ...args) {
+    if (window.google && google.script && google.script.run)
+      return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
+    return fetch(API_URL, {
+      method: 'POST', credentials: 'omit', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn, args })
+    }).then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.error); return j.data; });
+  }
+  function errMsg(e) { return (e && e.message) ? e.message : String(e); }
+
+  function applyData(d) {
+    teacherList = d.teachers || [];
+    records = d.records || [];
+    lastLog = d.lastLog;
+    if (d.sheetUrl) document.getElementById('sheetLink').href = d.sheetUrl;
+    updateTeacherCount();
+    updateFileStatus();
+  }
+
+  function tryLogin(pw) {
+    const btn = document.getElementById('loginBtn'), msg = document.getElementById('loginMsg');
+    btn.disabled = true; btn.textContent = '확인 중…'; msg.textContent = '';
+    return call('login', pw).then(d => {
+      PW = pw;
+      try { sessionStorage.setItem('pw', pw); } catch (e) {}
+      document.getElementById('loginBox').classList.add('hidden');
+      applyData(d);
+    }).catch(e => {
+      try { sessionStorage.removeItem('pw'); } catch (er) {}
+      msg.textContent = errMsg(e).replace(/^Error:\s*/, '');
+      document.getElementById('pwInput').select();
+    }).finally(() => { btn.disabled = false; btn.textContent = '들어가기'; });
+  }
+  function doLogin(e) {
+    e.preventDefault();
+    const pw = document.getElementById('pwInput').value.trim();
+    if (!pw) { document.getElementById('loginMsg').textContent = '비밀번호를 넣어 주세요.'; return; }
+    tryLogin(pw);
+  }
+  window.addEventListener('load', () => {
+    let saved = '';
+    try { saved = sessionStorage.getItem('pw') || ''; } catch (e) {}
+    if (saved) tryLogin(saved); else document.getElementById('pwInput').focus();
+  });
+
+  /* ---------- 날짜 ---------- */
+  function toDateStr(v) {
+    if (typeof v === 'number' && window.XLSX) return XLSX.SSF.format('yyyy-mm-dd', v);
+    if (v instanceof Date) return v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') + '-' + String(v.getDate()).padStart(2, '0');
+    return String(v || '').trim().replace(/[./]/g, '-').replace(/-$/, '');
+  }
+  function dateRange(rows) {
+    const ds = rows.map(r => r[C['연수종료일']]).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    return ds.length ? `${ds[0]} ~ ${ds[ds.length - 1]}` : '날짜 정보 없음';
+  }
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+
+  function updateFileStatus() {
+    document.getElementById('fileStatus').textContent = `현재 누적된 연수: ${records.length.toLocaleString()}건`;
+    document.getElementById('totalStatus').textContent = `${records.length.toLocaleString()}건`;
+    const years = {};
+    records.forEach(r => { const y = String(r[C['연수과정연도']] || '').trim() || '연도없음'; years[y] = (years[y] || 0) + 1; });
+    const yearText = Object.keys(years).sort().map(y => `${y}년 ${years[y]}건`).join(' · ');
+    document.getElementById('periodStatus').textContent = records.length
+      ? `${dateRange(records)} (연수종료일 기준)${yearText ? ' · ' + yearText : ''}` : '-';
+
+    const dEl = document.getElementById('updDate'), tEl = document.getElementById('updTime');
+    if (lastLog) {
+      const [at, files, range, rows, added] = lastLog;
+      const m = String(at).match(/(\d{4})-(\d{2})-(\d{2})\s*(\d{2}:\d{2})?/);
+      if (m) {
+        const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+        dEl.textContent = `${m[1]}년 ${+m[2]}월 ${+m[3]}일 (${WEEK[dt.getDay()]})`;
+        tEl.textContent = m[4] ? `${m[4]} 최신화` : '';
+      } else { dEl.textContent = at; tEl.textContent = ''; }
+      document.getElementById('lastUpdateStatus').textContent = `${files} · 올린 내역 ${range} · ${rows}건 중 신규 ${added}건`;
+    } else {
+      dEl.textContent = '기록 없음';
+      tEl.textContent = '';
+      document.getElementById('lastUpdateStatus').textContent = '-';
+    }
+  }
+
+  /* ---------- 업로드 ---------- */
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+  fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+  function readFile(file) {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }));
+        } catch (err) { rej(new Error(`${file.name}: 읽을 수 없는 파일입니다.`)); }
+      };
+      reader.onerror = () => rej(new Error(`${file.name}: 파일을 열지 못했습니다.`));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    dropZone.classList.add('busy');
+    const st = document.getElementById('fileStatus');
+    st.innerHTML = '<span class="spin"></span> 파일 읽는 중…';
+    try {
+      let rows = [];
+      for (const f of files) {
+        const json = await readFile(f);
+        if (json.length && !Object.keys(json[0]).some(k => k.replace(/\s/g, '') === '개인번호'))
+          throw new Error(`${f.name}: '개인번호' 열이 없습니다. 나이스 연수 이수 엑셀이 맞는지 확인해 주세요.`);
+        json.forEach(obj => {
+          const n = {};
+          Object.keys(obj).forEach(k => { n[k.replace(/\s/g, '')] = obj[k]; });
+          const row = COLS.map(c => {
+            let v = n[c];
+            if (c === '연수시작일' || c === '연수종료일') v = toDateStr(v);
+            return v == null ? '' : String(v).trim();
+          });
+          row[C['개인번호']] = row[C['개인번호']].toUpperCase();
+          if (row[C['개인번호']]) rows.push(row);
+        });
+      }
+      if (!rows.length) throw new Error('파일에 연수 내역이 없습니다.');
+      st.innerHTML = `<span class="spin"></span> ${rows.length.toLocaleString()}건을 구글 시트에 합치는 중…`;
+      const before = records.length;
+      const d = await call('uploadRecords', PW, rows, { files: files.map(f => f.name), range: dateRange(rows) });
+      applyData(d);
+      toast(`업로드 완료! 새로 더해진 연수 ${(records.length - before).toLocaleString()}건\n중복을 뺀 누적 연수는 ${records.length.toLocaleString()}건입니다.`);
+      if (!document.getElementById('resultContainer').classList.contains('hidden')) searchData();
+    } catch (e) {
+      updateFileStatus();
+      toast('업로드 실패: ' + errMsg(e), 'err');
+    } finally {
+      dropZone.classList.remove('busy');
+      fileInput.value = '';
+    }
+  }
+
+  /* ---------- 교원 명단 ---------- */
+  function openRoster() { document.getElementById('rosterModal').classList.remove('hidden'); renderRoster(); document.getElementById('newName').focus(); }
+  function closeRoster() { document.getElementById('rosterModal').classList.add('hidden'); pendingDelete = null; }
+  document.getElementById('rosterModal').addEventListener('click', e => { if (e.target.id === 'rosterModal') closeRoster(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRoster(); });
+
+  function updateTeacherCount() {
+    document.getElementById('teacherCount').textContent = `저장된 명단: ${teacherList.length}명`;
+    renderRoster();
+  }
+
+  function renderRoster() {
+    const box = document.getElementById('rosterList');
+    const q = (document.getElementById('rosterFilter').value || '').trim();
+    box.innerHTML = '';
+    const list = teacherList.filter(t => !q || t.name.includes(q) || String(t.id).includes(q.toUpperCase()));
+    if (!list.length) {
+      box.innerHTML = `<span class="text-xs text-slate-400">${teacherList.length === 0 ? '명단이 비어 있습니다.' : '찾는 사람이 없습니다.'}</span>`;
+      return;
+    }
+    list.forEach(t => {
+      const chip = document.createElement('span');
+      const armed = pendingDelete === t.id;
+      chip.className = 'inline-flex items-center rounded-full pl-3 pr-1 py-0.5 text-xs border ' +
+        (armed ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-white border-indigo-200 text-indigo-800');
+      chip.appendChild(document.createTextNode(`${t.name} (${t.id})`));
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.title = `${t.name} 삭제`;
+      del.textContent = armed ? '삭제?' : '✕';
+      del.className = armed ? 'ml-1 px-2 h-5 rounded-full bg-rose-600 text-white font-bold' : 'ml-1 w-5 h-5 rounded-full text-slate-400 hover:bg-rose-100 hover:text-rose-600';
+      del.onclick = () => removeTeacher(t.id);
+      chip.appendChild(del);
+      box.appendChild(chip);
+    });
+  }
+
+  async function persistTeachers(newList, okMsg) {
+    const st = document.getElementById('saveState');
+    st.textContent = '저장 중…';
+    const prev = teacherList;
+    teacherList = newList; updateTeacherCount();
+    try {
+      teacherList = await call('saveTeachers', PW, newList);
+      updateTeacherCount();
+      st.textContent = '✔ 구글 시트에 저장됨';
+      if (okMsg) toast(okMsg);
+      return true;
+    } catch (e) {
+      teacherList = prev; updateTeacherCount();
+      st.textContent = '';
+      toast('명단 저장 실패: ' + errMsg(e), 'err');
+      return false;
+    }
+  }
+
+  function addTeacher() {
+    const nameEl = document.getElementById('newName'), idEl = document.getElementById('newId');
+    const name = nameEl.value.trim(), id = idEl.value.trim().toUpperCase();
+    if (!name || !id) return toast('이름과 개인번호를 모두 입력해 주세요.', 'warn');
+    const dup = teacherList.find(t => t.id === id);
+    if (dup) return toast(`이미 명단에 있는 개인번호입니다: ${dup.name} (${dup.id})`, 'warn');
+    persistTeachers(teacherList.concat([{ name, id }]), `${name} 선생님을 추가했습니다.`);
+    nameEl.value = ''; idEl.value = ''; nameEl.focus();
+  }
+
+  function removeTeacher(id) {
+    if (pendingDelete !== id) { pendingDelete = id; renderRoster(); return; }
+    pendingDelete = null;
+    const t = teacherList.find(x => x.id === id);
+    persistTeachers(teacherList.filter(x => x.id !== id), t ? `${t.name} 선생님을 명단에서 뺐습니다.` : '');
+  }
+
+  function replaceTeachers() {
+    const input = document.getElementById('teacherInput').value.trim();
+    if (!input) return toast('붙여넣을 명단을 입력해 주세요.', 'warn');
+    const newList = [];
+    input.split('\n').forEach(line => {
+      const parts = line.split(/\t|,/).map(s => s.trim());
+      if (parts.length >= 2 && parts[0] && parts[1] && parts[0] !== '이름' && !parts[1].includes('개인번호'))
+        newList.push({ name: parts[0], id: parts[1].toUpperCase() });
+    });
+    if (!newList.length) return toast('이름과 개인번호를 찾지 못했습니다. "이름[탭]개인번호" 형식인지 확인해 주세요.', 'warn');
+    const btn = document.getElementById('replaceBtn');
+    if (btn.dataset.armed !== '1') {
+      btn.dataset.armed = '1';
+      btn.textContent = `${newList.length}명으로 교체할까요? 한 번 더 누르세요`;
+      btn.classList.replace('bg-slate-600', 'bg-rose-600');
+      setTimeout(() => { btn.dataset.armed = ''; btn.textContent = '명단 전체 교체'; btn.classList.replace('bg-rose-600', 'bg-slate-600'); }, 5000);
+      return;
+    }
+    btn.dataset.armed = ''; btn.textContent = '명단 전체 교체'; btn.classList.replace('bg-rose-600', 'bg-slate-600');
+    persistTeachers(newList, `교원 ${newList.length}명으로 명단을 바꿨습니다.`).then(ok => { if (ok) document.getElementById('teacherInput').value = ''; });
+  }
+
+  /* ---------- 조회 ---------- */
+  function searchData() {
+    if (!teacherList.length) return toast('교원 명단이 비어 있습니다. [교원 명단 보기·편집]에서 먼저 넣어 주세요.', 'warn');
+    if (!records.length) return toast('연수 내역이 없습니다. 나이스 연수 파일을 먼저 올려 주세요.', 'warn');
+    const startInput = document.getElementById('startDate').value;
+    const endInput = document.getElementById('endDate').value;
+    const keywords = document.getElementById('keywords').value.split(',').map(k => k.trim()).filter(Boolean);
+    const ids = new Set(teacherList.map(t => t.id));
+    const start = startInput || '0000-00-00', end = endInput || '9999-99-99';
+
+    currentFilteredData = records.filter(r => {
+      if (!ids.has(String(r[C['개인번호']]))) return false;
+      if (startInput || endInput) {
+        const e = r[C['연수종료일']];
+        if (!e || e < start || e > end) return false;
+      }
+      return keywords.length ? keywords.some(k => String(r[C['연수과정명']] || '').includes(k)) : true;
+    });
+    renderResults(currentFilteredData);
+  }
+
+  const SHOW = ['연수과정연도', '개인번호', '성명', '이수번호', '연수과정명', '연수기관', '연수시작일', '연수종료일', '연수시간'];
+
+  function renderResults(data) {
+    document.getElementById('resultContainer').classList.remove('hidden');
+    document.getElementById('resultCount').textContent = `(이수 기록 ${data.length}건)`;
+    const tbody = document.getElementById('resultBody');
+    tbody.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    data.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-50';
+      SHOW.forEach(c => { const td = document.createElement('td'); td.textContent = r[C[c]] || ''; tr.appendChild(td); });
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+
+    const done = new Set(data.map(r => String(r[C['개인번호']])));
+    const box = document.getElementById('uncompletedList');
+    box.innerHTML = '';
+    const un = teacherList.filter(t => !done.has(String(t.id)));
+    document.getElementById('uncompletedCount').textContent = un.length ? `· ${un.length}명` : '';
+    if (!un.length) box.innerHTML = '<span class="text-emerald-600 font-bold">전원 이수하였습니다! 👏</span>';
+    else un.forEach(t => {
+      const s = document.createElement('span');
+      s.className = 'bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-200';
+      s.textContent = `${t.name} (${t.id})`;
+      box.appendChild(s);
+    });
+    document.getElementById('resultContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // 개인정보 보호: 화면에 보이는 9개 항목만 내려받기
+  function downloadExcel() {
+    if (!currentFilteredData.length) return toast('다운로드할 데이터가 없습니다.', 'warn');
+    const out = currentFilteredData.map(r => ({
+      '연도': r[C['연수과정연도']], '개인번호': r[C['개인번호']], '성명': r[C['성명']], '이수번호': r[C['이수번호']],
+      '연수과정명': r[C['연수과정명']], '연수기관': r[C['연수기관']], '시작일': r[C['연수시작일']],
+      '종료일': r[C['연수종료일']], '시간': r[C['연수시간']]
+    }));
+    const ws = XLSX.utils.json_to_sheet(out);
+    ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 25 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '연수조회결과');
+    // 미이수자 시트도 함께
+    const done = new Set(currentFilteredData.map(r => String(r[C['개인번호']])));
+    const un = teacherList.filter(t => !done.has(String(t.id))).map(t => ({ '이름': t.name, '개인번호': t.id }));
+    const ws2 = XLSX.utils.json_to_sheet(un.length ? un : [{ '이름': '전원 이수', '개인번호': '' }]);
+    XLSX.utils.book_append_sheet(wb, ws2, '미이수자');
+    const p = n => String(n).padStart(2, '0'), d = new Date();
+    XLSX.writeFile(wb, `연수이수현황_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.xlsx`);
+  }
+</script>
+</body>
+</html>
